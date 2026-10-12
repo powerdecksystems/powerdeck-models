@@ -38,7 +38,7 @@ jobs:
 
       - name: install deps
         run: pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu &&
-             pip install --no-cache-dir transformers onnx onnxruntime \
+             pip install --no-cache-dir transformers onnx onnxscript onnxruntime \
                  'optimum[onnxruntime]' chronos-forecasting huggingface_hub
 
       - name: export
