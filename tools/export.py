@@ -122,6 +122,19 @@ def _export_chronos(model: str, out: Path, atol: float,
     pipe = BaseChronosPipeline.from_pretrained(model, device_map='cpu')
     inner = pipe.model.eval()
 
+    class _EmbedCast(torch.nn.Module):
+        """torch.full without dtype= exports as ConstantOfShape whose
+        value attr is float-typed — the [REG] token ids then reach
+        Gather as float, which ORT rejects. Cast ids at the boundary."""
+        def __init__(self, emb):
+            super().__init__()
+            self.emb = emb
+
+        def forward(self, ids):
+            return self.emb(ids.long())
+
+    inner.shared = _EmbedCast(inner.shared)
+
     class _Wrap(torch.nn.Module):
         """Chronos2Output → quantile_preds (batch, quantiles, horizon)."""
         def __init__(self, m, horizon_patches):
