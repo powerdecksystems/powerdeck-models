@@ -76,10 +76,13 @@ def _export_chronos(model: str, out: Path, atol: float,
                     value_t=torch.zeros(1, dtype=torch.float32))
         clean = g.op("Where", isnan, zero, x)
         kd = 1 if sh._parse_arg(keepdim, 'i') else 0
-        num = g.op("ReduceSum", clean, axes_i=axes, keepdims_i=kd)
+        # opset ≥18: ReduceSum takes axes as an INPUT, not attribute
+        axes_c = g.op("Constant",
+                      value_t=torch.tensor(axes, dtype=torch.int64))
+        num = g.op("ReduceSum", clean, axes_c, keepdims_i=kd)
         cnt = g.op("ReduceSum",
                    g.op("Cast", inv, to_i=1),  # bool → float32
-                   axes_i=axes, keepdims_i=kd)
+                   axes_c, keepdims_i=kd)
         return g.op("Div", num, cnt)
 
     def _asinh(g, x):
