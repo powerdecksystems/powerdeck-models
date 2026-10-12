@@ -1,0 +1,85 @@
+name: export
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: 'HF repo (e.g. amazon/chronos-2)'
+        required: true
+      name:
+        description: 'manifest artifact name (e.g. chronos-2)'
+        required: true
+      recipe:
+        description: 'export recipe'
+        type: choice
+        options: [seq2seq, chronos]
+        default: seq2seq
+      release_tag:
+        description: 'release tag to publish under (e.g. models-2026-10-12)'
+        required: true
+      title: {description: 'display name', required: false, default: ''}
+      description: {description: 'what the model is', required: false, default: ''}
+      use_case: {description: 'best use case', required: false, default: ''}
+      tier: {description: 'license tier label', required: false, default: 'ai'}
+      kind: {description: 'step family (forecast/anomaly/battery/…)', required: false, default: ''}
+
+permissions:
+  contents: write
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: install deps
+        run: pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu &&
+             pip install --no-cache-dir transformers onnx onnxruntime \
+                 'optimum[onnxruntime]' chronos-forecasting huggingface_hub
+
+      - name: export
+        run: >
+          python tools/export.py
+          --model '${{ inputs.model }}'
+          --name '${{ inputs.name }}'
+          --recipe '${{ inputs.recipe }}'
+          --out 'dist/${{ inputs.name }}'
+          --title '${{ inputs.title }}'
+          --description '${{ inputs.description }}'
+          --use-case '${{ inputs.use_case }}'
+          --tier '${{ inputs.tier }}'
+          --kind '${{ inputs.kind }}'
+
+      - name: publish release asset
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          gh release view '${{ inputs.release_tag }}' \
+              --repo '${{ github.repository }}' >/dev/null 2>&1 \
+            || gh release create '${{ inputs.release_tag }}' \
+                 --repo '${{ github.repository }}' \
+                 --title '${{ inputs.release_tag }}' --notes 'model artifacts'
+          gh release upload '${{ inputs.release_tag }}' \
+            'dist/${{ inputs.name }}/model.onnx#${{ inputs.name }}.onnx' \
+            --repo '${{ github.repository }}' --clobber
+
+      - name: update manifest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python tools/manifest_update.py \
+            --fragment 'dist/${{ inputs.name }}/fragment.json' \
+            --manifest manifest.json \
+            --repo '${{ github.repository }}' \
+            --tag '${{ inputs.release_tag }}'
+          git config user.name 'powerdeck-models-bot'
+          git config user.email 'bot@powerdecksystems.github'
+          git add manifest.json
+          git diff --cached --quiet || \
+            git commit -m "manifest: ${{ inputs.name }} @ ${{ inputs.release_tag }}"
+          git push
