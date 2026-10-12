@@ -73,8 +73,15 @@ jobs:
                  --repo '${{ github.repository }}' \
                  --title '${{ inputs.release_tag }}' --notes 'model artifacts'
           gh release upload '${{ inputs.release_tag }}' \
-            'dist/${{ inputs.name }}/model.onnx#${{ inputs.name }}.onnx' \
+            'dist/${{ inputs.name }}/model.onnx' \
             --repo '${{ github.repository }}' --clobber
+          # download URL follows the asset NAME — rename to <name>.onnx
+          gh api -X PATCH \
+            "repos/${{ github.repository }}/releases/assets/$(\
+              gh api repos/${{ github.repository }}/releases/tags/${{ inputs.release_tag }} \
+              --jq '.assets[] | select(.name=="model.onnx") | .id' \
+              | head -1)" \
+            -f name='${{ inputs.name }}.onnx' --jq '.browser_download_url'
 
       - name: update manifest
         env:
