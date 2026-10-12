@@ -57,7 +57,8 @@ def _export_seq2seq(model: str, out: Path, atol: float) -> tuple[float, dict]:
 
 
 def _export_chronos(model: str, out: Path, atol: float,
-                    horizon_patches: int = 8) -> tuple[float, dict]:
+                    horizon_patches: int = 8,
+                    context_len: int = 512) -> tuple[float, dict]:
     """chronos-forecasting models — torch.onnx.export the inner
     encoder-decoder on a representative context window."""
     import torch
@@ -107,19 +108,22 @@ def _export_chronos(model: str, out: Path, atol: float,
                           num_output_patches=self.h).quantile_preds
 
     w = _Wrap(inner, horizon_patches).eval()
-    ctx = torch.sin(torch.linspace(0, 6.28, 128))[None, :]  # 1×128 context
+    ctx = torch.sin(torch.linspace(0, 6.28, context_len))[None, :]
     with torch.no_grad():
         tout = w(ctx).numpy()
     onnx_path = out / 'model.onnx'
+    # Static shapes only — chronos's patch embed uses Tensor.unfold,
+    # which cannot export against a symbolic input length. Consumers
+    # pad/truncate to fragment context_length.
     torch.onnx.export(
         w, (ctx,), onnx_path,
         input_names=['context'], output_names=['forecast'],
-        dynamic_axes={'context': {0: 'batch', 1: 'length'},
-                      'forecast': {0: 'batch'}},
         opset_version=17, dynamo=False)  # dynamo exporter emits an
     # invalid bool-input Einsum for this model — legacy tracer is clean
     return _parity(tout, onnx_path, {'context': ctx.numpy()}, atol), \
-        {'context_shape': list(ctx.shape)}
+        {'context_length': context_len,
+         'horizon_steps': horizon_patches * getattr(
+             inner.chronos_config, 'output_patch_size', 16)}
 
 
 RECIPE = {'seq2seq': _export_seq2seq, 'chronos': _export_chronos}
