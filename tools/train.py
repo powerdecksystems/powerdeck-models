@@ -22,7 +22,7 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).parent))
-from datasets import (PQ_CLASSES, ieee1159_waveforms,
+from pd_datasets import (PQ_CLASSES, ieee1159_waveforms,
                       synthetic_telemetry, uci_appliances_energy)
 from export import _parity, _sha256, write_fragment
 
