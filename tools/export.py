@@ -138,6 +138,65 @@ def _export_chronos(model: str, out: Path, atol: float,
 
     inner.shared = _EmbedCast(inner.shared)
 
+    # The legacy tracer mis-shapes two constructs inside
+    # _prepare_patched_context: Tensor.unfold (patching) and the einops
+    # repeat (time encoding) — both emit transposed dims that fail ORT
+    # shape inference (and would silently corrupt the model if they
+    # didn't). Reimplement with unfold→reshape (patch_stride ==
+    # patch_size here, so unfold is exactly a reshape) and
+    # einops→expand. Verified against the unpatched forward below.
+    import types as _types
+    cfg = inner.chronos_config
+
+    def _prep_patched_context(self, context, context_mask=None):
+        if context_mask is not None:
+            context_mask = context_mask.to(context.dtype)
+        else:
+            context_mask = torch.isnan(context).logical_not().to(
+                context.dtype)
+        b, length = context.shape
+        if length > cfg.context_length:
+            context = context[..., -cfg.context_length:]
+            context_mask = context_mask[..., -cfg.context_length:]
+        context, loc_scale = self.instance_norm(context)
+        context = context.to(self.dtype)
+        context_mask = context_mask.to(self.dtype)
+        p, stride = cfg.input_patch_size, cfg.input_patch_stride
+        pad = (-context.shape[-1]) % stride
+        if pad:
+            nan_pad = torch.full((*context.shape[:-1], pad),
+                              torch.nan, dtype=context.dtype,
+                              device=context.device)
+            context = torch.cat([nan_pad, context], dim=-1)
+            m_pad = torch.zeros((*context_mask.shape[:-1], pad),
+                             dtype=context_mask.dtype,
+                             device=context_mask.device)
+            context_mask = torch.cat([m_pad, context_mask], dim=-1)
+        n = (context.shape[-1] - p) // stride + 1
+        if stride == p:
+            patched = context.reshape(b, n, p)
+            patched_mask = context_mask.reshape(b, n, p)
+        else:  # strided overlap — stride≠p can't be a plain reshape
+            idx = (torch.arange(p, device=context.device)[None]
+                   + stride * torch.arange(n, device=context.device)[:, None])
+            patched = context[:, idx]
+            patched_mask = context_mask[:, idx]
+        patched_mask = torch.nan_to_num(patched_mask, nan=0.0)
+        patched = torch.where(patched_mask > 0.0, patched, 0.0)
+        attention_mask = patched_mask.sum(dim=-1) > 0
+        tenc = torch.arange(-(n * p), 0, device=context.device,
+                         dtype=torch.float32)
+        tenc = (tenc.reshape(1, n, p).expand(b, n, p)
+                .div(int(cfg.time_encoding_scale)).to(self.dtype))
+        return (torch.cat([tenc, patched, patched_mask], dim=-1),
+                attention_mask, loc_scale)
+
+    ctx = torch.sin(torch.linspace(0, 6.28, context_len))[None, :]
+    with torch.no_grad():
+        ref = inner(ctx, num_output_patches=horizon_patches).quantile_preds
+    inner._prepare_patched_context = _types.MethodType(
+        _prep_patched_context, inner)
+
     class _Wrap(torch.nn.Module):
         """Chronos2Output → quantile_preds (batch, quantiles, horizon)."""
         def __init__(self, m, horizon_patches):
@@ -150,9 +209,11 @@ def _export_chronos(model: str, out: Path, atol: float,
                           num_output_patches=self.h).quantile_preds
 
     w = _Wrap(inner, horizon_patches).eval()
-    ctx = torch.sin(torch.linspace(0, 6.28, context_len))[None, :]
     with torch.no_grad():
         tout = w(ctx).numpy()
+    delta = float(abs(ref.numpy() - tout).max())
+    assert delta < 1e-4, \
+        f'patched _prepare_patched_context diverges from original: {delta}'
     onnx_path = out / 'model.onnx'
     # Static shapes only — chronos's patch embed uses Tensor.unfold,
     # which cannot export against a symbolic input length. Consumers
