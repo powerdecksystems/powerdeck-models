@@ -67,16 +67,18 @@ def _export_chronos(model: str, out: Path, atol: float,
     def _nanmean(g, x, dim, keepdim=False, dtype=None):
         """nanmean(x,dim) = sum(nan_to_num(x),dim) / sum(~isnan(x),dim) —
         aten::nanmean has no ONNX symbolic."""
+        from torch.onnx import symbolic_helper as sh
+        axes = sh._parse_arg(dim, 'is')  # traced Constant → list[int]
         isnan = g.op("IsNaN", x)
         inv = g.op("Not", isnan)
         zero = g.op("Constant",
                     value_t=torch.zeros(1, dtype=torch.float32))
         clean = g.op("Where", isnan, zero, x)
-        kd = 1 if keepdim else 0
-        num = g.op("ReduceSum", clean, axes_i=dim, keepdims_i=kd)
+        kd = 1 if sh._parse_arg(keepdim, 'i') else 0
+        num = g.op("ReduceSum", clean, axes_i=axes, keepdims_i=kd)
         cnt = g.op("ReduceSum",
                    g.op("Cast", inv, to_i=1),  # bool → float32
-                   axes_i=dim, keepdims_i=kd)
+                   axes_i=axes, keepdims_i=kd)
         return g.op("Div", num, cnt)
 
     register_custom_op_symbolic("aten::nanmean", _nanmean, 17)
