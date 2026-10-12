@@ -90,8 +90,34 @@ def _export_chronos(model: str, out: Path, atol: float,
         return g.op("Log", g.op(
             "Add", x, g.op("Sqrt", g.op("Add", g.op("Mul", x, x), one))))
 
-    register_custom_op_symbolic("aten::nanmean", _nanmean, 17)
-    register_custom_op_symbolic("aten::asinh", _asinh, 17)
+    def _sinh(g, x):
+        """sinh(x) = (eˣ − e⁻ˣ)/2 — used by Chronos2RotaryEmbedding."""
+        two = g.op("Constant",
+                   value_t=torch.full((1,), 2.0, dtype=torch.float32))
+        return g.op("Div", g.op("Sub", g.op("Exp", x),
+                                g.op("Exp", g.op("Neg", x))), two)
+
+    def _cosh(g, x):
+        """cosh(x) = (eˣ + e⁻ˣ)/2 — paired with sinh in rope embed."""
+        two = g.op("Constant",
+                   value_t=torch.full((1,), 2.0, dtype=torch.float32))
+        return g.op("Div", g.op("Add", g.op("Exp", x),
+                                g.op("Exp", g.op("Neg", x))), two)
+
+    def _atanh(g, x):
+        """atanh(x) = ½ ln((1+x)/(1−x)) — head off the whole
+        hyperbolic family in one pass rather than per-run."""
+        half = g.op("Constant",
+                    value_t=torch.full((1,), 0.5, dtype=torch.float32))
+        one = g.op("Constant",
+                   value_t=torch.ones(1, dtype=torch.float32))
+        return g.op("Mul", half, g.op("Log", g.op(
+            "Div", g.op("Add", one, x), g.op("Sub", one, x))))
+
+    for op, fn in (("aten::nanmean", _nanmean), ("aten::asinh", _asinh),
+                   ("aten::sinh", _sinh), ("aten::cosh", _cosh),
+                   ("aten::atanh", _atanh)):
+        register_custom_op_symbolic(op, fn, 17)
 
     pipe = BaseChronosPipeline.from_pretrained(model, device_map='cpu')
     inner = pipe.model.eval()
