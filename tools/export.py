@@ -81,7 +81,16 @@ def _export_chronos(model: str, out: Path, atol: float,
                    axes_i=axes, keepdims_i=kd)
         return g.op("Div", num, cnt)
 
+    def _asinh(g, x):
+        """asinh(x) = ln(x + sqrt(x² + 1)) — no opset-17 symbolic either
+        (chronos_bolt InstanceNorm inverse transform)."""
+        one = g.op("Constant",
+                   value_t=torch.ones(1, dtype=torch.float32))
+        return g.op("Log", g.op(
+            "Add", x, g.op("Sqrt", g.op("Add", g.op("Mul", x, x), one))))
+
     register_custom_op_symbolic("aten::nanmean", _nanmean, 17)
+    register_custom_op_symbolic("aten::asinh", _asinh, 17)
 
     pipe = BaseChronosPipeline.from_pretrained(model, device_map='cpu')
     inner = pipe.model.eval()
