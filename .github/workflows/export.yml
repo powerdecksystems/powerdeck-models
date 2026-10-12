@@ -54,6 +54,14 @@ jobs:
           --tier '${{ inputs.tier }}'
           --kind '${{ inputs.kind }}'
 
+      - name: upload broken artifact for debugging
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failed-dist-${{ inputs.name }}
+          path: dist/**
+          retention-days: 7
+
       - name: publish release asset
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
