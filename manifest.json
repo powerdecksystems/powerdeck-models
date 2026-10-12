@@ -17,6 +17,34 @@
       "context_length": 512,
       "horizon_steps": 128,
       "url": "https://github.com/powerdecksystems/powerdeck-models/releases/download/models-2026-10-12/chronos-2.onnx"
+    },
+    {
+      "name": "pq-classifier",
+      "title": "Power Quality Classifier",
+      "description": "IEEE-1159 event classifier trained on synthetic waveforms",
+      "use_case": "Classify voltage sag, swell, interruption, transient and harmonic events",
+      "tier": "ai",
+      "kind": "power_quality",
+      "format": "onnx",
+      "artifact": "pq-classifier/model.onnx",
+      "sha256": "2854757d91f758b068ab52c7624dbfd49614c3ebad35c6b106160dbd6c2d3ef8",
+      "bytes": 287147,
+      "source_model": "trained:pq",
+      "parity_max_abs_diff": 1.9073486328125e-06,
+      "classes": [
+        "normal",
+        "sag",
+        "swell",
+        "interruption",
+        "impulsive_transient",
+        "oscillatory_transient",
+        "harmonics",
+        "flicker"
+      ],
+      "window": 1280,
+      "source_dataset": "synthetic-ieee1159",
+      "train_acc": 0.7566,
+      "url": "https://github.com/powerdecksystems/powerdeck-models/releases/download/models-2026-10-12/pq-classifier.onnx"
     }
   ]
 }
