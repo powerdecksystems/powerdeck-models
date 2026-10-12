@@ -1,0 +1,16 @@
+{
+  "id": "powerdecksystems/chronos2-finetune",
+  "title": "chronos2-finetune",
+  "code_file": "chronos2-finetune.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_tpu": false,
+  "enable_internet": true,
+  "category_ids": [],
+  "dataset_sources": [],
+  "kernel_sources": [],
+  "competition_sources": [],
+  "model_sources": []
+}
