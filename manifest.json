@@ -21,6 +21,35 @@
       "url": "https://github.com/powerdecksystems/powerdeck-models/releases/download/models-2026-10-12/anomaly-transformer.onnx"
     },
     {
+      "name": "battery-rul",
+      "title": "Battery Health (NASA PCoE)",
+      "description": "SOH forecaster trained on NASA Li-ion aging data",
+      "use_case": "Battery state-of-health trend + EOL projection",
+      "tier": "ai",
+      "kind": "battery",
+      "format": "onnx",
+      "artifact": "battery-rul/model.onnx",
+      "sha256": "e03602238219b6a937dc27f84eaecd996d0aa44c758af9ecd9594b5b2420dd42",
+      "bytes": 22938,
+      "source_model": "trained:battery",
+      "parity_max_abs_diff": 0.0,
+      "cells": [
+        "B0005",
+        "B0006",
+        "B0007",
+        "B0018",
+        "B0029",
+        "B0030",
+        "B0031",
+        "B0032"
+      ],
+      "window": 20,
+      "horizon_cycles": 4,
+      "heldout_soh_mae": 0.0198,
+      "source_dataset": "nasa-pcoe-liion",
+      "url": "https://github.com/powerdecksystems/powerdeck-models/releases/download/models-2026-10-12/battery-rul.onnx"
+    },
+    {
       "name": "chronos-2",
       "title": "Chronos-2 Forecast",
       "description": "Universal time-series foundation model (Amazon), zero-shot",
