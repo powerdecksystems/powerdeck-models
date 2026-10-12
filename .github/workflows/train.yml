@@ -1,0 +1,111 @@
+name: train
+
+on:
+  workflow_dispatch:
+    inputs:
+      recipe:
+        description: 'training recipe'
+        type: choice
+        options: [pq, anomaly, ttm, chronos, battery]
+        required: true
+      name:
+        description: 'manifest artifact name (e.g. pq-classifier)'
+        required: true
+      model:
+        description: 'HF repo for fine-tune recipes (ttm/chronos)'
+        required: false
+        default: ''
+      epochs:
+        description: 'training epochs (0 = export pretrain only)'
+        required: false
+        default: '10'
+      steps:
+        description: 'chronos fit() num_steps'
+        required: false
+        default: '500'
+      release_tag:
+        description: 'release tag to publish under'
+        required: true
+      title: {description: 'display name', required: false, default: ''}
+      description: {description: 'what the model is', required: false, default: ''}
+      use_case: {description: 'best use case', required: false, default: ''}
+      tier: {description: 'license tier', required: false, default: 'ai'}
+      kind: {description: 'step family', required: false, default: ''}
+
+permissions:
+  contents: write
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: install deps
+        run: pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu &&
+             pip install --no-cache-dir transformers onnx onnxscript onnxruntime \
+                 chronos-forecasting huggingface_hub pandas
+
+      - name: train + export
+        run: >
+          python tools/train.py
+          --recipe '${{ inputs.recipe }}'
+          --name '${{ inputs.name }}'
+          --model '${{ inputs.model }}'
+          --out 'dist/${{ inputs.name }}'
+          --epochs '${{ inputs.epochs }}'
+          --steps '${{ inputs.steps }}'
+          --title '${{ inputs.title }}'
+          --description '${{ inputs.description }}'
+          --use-case '${{ inputs.use_case }}'
+          --tier '${{ inputs.tier }}'
+          --kind '${{ inputs.kind }}'
+
+      - name: upload broken artifact for debugging
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failed-dist-${{ inputs.name }}
+          path: dist/**
+          retention-days: 7
+
+      - name: publish release asset
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          gh release view '${{ inputs.release_tag }}' \
+              --repo '${{ github.repository }}' >/dev/null 2>&1 \
+            || gh release create '${{ inputs.release_tag }}' \
+                 --repo '${{ github.repository }}' \
+                 --title '${{ inputs.release_tag }}' --notes 'model artifacts'
+          gh release upload '${{ inputs.release_tag }}' \
+            'dist/${{ inputs.name }}/model.onnx' \
+            --repo '${{ github.repository }}' --clobber
+          # download URL follows the asset NAME — rename to <name>.onnx
+          gh api -X PATCH \
+            "repos/${{ github.repository }}/releases/assets/$(\
+              gh api repos/${{ github.repository }}/releases/tags/${{ inputs.release_tag }} \
+              --jq '.assets[] | select(.name=="model.onnx") | .id' \
+              | head -1)" \
+            -f name='${{ inputs.name }}.onnx' --jq '.browser_download_url'
+
+      - name: update manifest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python tools/manifest_update.py \
+            --fragment 'dist/${{ inputs.name }}/fragment.json' \
+            --manifest manifest.json \
+            --repo '${{ github.repository }}' \
+            --tag '${{ inputs.release_tag }}'
+          git config user.name 'powerdeck-models-bot'
+          git config user.email 'bot@powerdecksystems.github'
+          git add manifest.json
+          git diff --cached --quiet || \
+            git commit -m "manifest: ${{ inputs.name }} @ ${{ inputs.release_tag }}"
+          git push

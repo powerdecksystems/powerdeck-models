@@ -254,26 +254,41 @@ def main() -> None:
     args.out.mkdir(parents=True, exist_ok=True)
     diff, meta = RECIPE[args.recipe](args.model, args.out, args.atol)
 
-    onnx_path = args.out / 'model.onnx'
+    write_fragment(args.out, name=args.name, source=args.model,
+                   diff=diff, meta=meta, title=args.title,
+                   description=args.description, use_case=args.use_case,
+                   tier=args.tier, kind=args.kind)
+    print(f"exported {args.model} → {args.out / 'model.onnx'}")
+
+
+def write_fragment(out: Path, *, name: str, source: str, diff: float,
+                   meta: dict, title: str = '', description: str = '',
+                   use_case: str = '', tier: str = 'ai',
+                   kind: str = '') -> Path:
+    """Emit <out>/fragment.json — the manifest entry minus `url`, which
+    manifest_update.py fills at release time. Shared by export.py and
+    train.py so both pipelines produce identical catalog entries."""
+    onnx_path = out / 'model.onnx'
     frag = {
-        'name': args.name,
-        'title': args.title or args.name,
-        'description': args.description,
-        'use_case': args.use_case,
-        'tier': args.tier,
-        'kind': args.kind,
+        'name': name,
+        'title': title or name,
+        'description': description,
+        'use_case': use_case,
+        'tier': tier,
+        'kind': kind,
         'format': 'onnx',
-        'artifact': f'{args.name}/model.onnx',
+        'artifact': f'{name}/model.onnx',
         'sha256': _sha256(onnx_path),
         'bytes': onnx_path.stat().st_size,
-        'source_model': args.model,
+        'source_model': source,
         'parity_max_abs_diff': diff,
         **(meta if isinstance(meta, dict) else {}),
     }
-    (args.out / 'fragment.json').write_text(json.dumps(frag, indent=2))
-    print(f"exported {args.model} → {onnx_path} "
+    frag_path = out / 'fragment.json'
+    frag_path.write_text(json.dumps(frag, indent=2))
+    print(f"fragment: {frag_path} "
           f"(parity Δ={diff:.2e}, sha256={frag['sha256'][:12]}…)")
-    print('manifest fragment:', args.out / 'fragment.json')
+    return frag_path
 
 
 if __name__ == '__main__':
