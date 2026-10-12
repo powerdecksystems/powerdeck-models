@@ -208,6 +208,27 @@ def _train_ttm(args, out: Path) -> tuple[float, dict]:
                   f'loss={ep_loss / max(nb, 1):.4f}')
     m.eval()
 
+    # TinyTimeMixerPatchify uses Tensor.unfold — the legacy tracer
+    # transposes its output dims (same bug class as chronos's patch
+    # embed). Replace every patchify instance with a gather-based
+    # equivalent; verified against the unpatched forward below.
+    import types as _types
+
+    def _patchify_gather(self, past_values):
+        if past_values.shape[-2] != self.sequence_length:
+            raise ValueError(
+                f"Input sequence length ({past_values.shape[-2]}) "
+                f"doesn't match model configuration "
+                f"({self.sequence_length}).")
+        x = past_values[:, self.sequence_start:, :]
+        b = x.shape[0]
+        p, s, n = self.patch_length, self.patch_stride, self.num_patches
+        idx = (torch.arange(p, device=x.device)[None, :]
+               + s * torch.arange(n, device=x.device)[:, None])
+        out = x[:, idx.reshape(-1), :]
+        out = out.reshape(b, n, p, x.shape[-1])
+        return out.permute(0, 3, 1, 2).contiguous()
+
     class _Wrap(torch.nn.Module):
         def __init__(self, mm):
             super().__init__()
@@ -220,7 +241,19 @@ def _train_ttm(args, out: Path) -> tuple[float, dict]:
     sample = torch.sin(torch.linspace(0, 6.28 * 10, ctx_len)
                        )[None, :, None]
     with torch.no_grad():
+        ref = w(sample).numpy()
+    patched = 0
+    for mod in m.modules():
+        if type(mod).__name__ == 'TinyTimeMixerPatchify':
+            mod.forward = _types.MethodType(_patchify_gather, mod)
+            patched += 1
+    with torch.no_grad():
         tout = w(sample).numpy()
+    delta = float(abs(ref - tout).max())
+    assert delta < 1e-4, \
+        f'patched patchify diverges from original: {delta}'
+    print(f'patchify replaced on {patched} modules, '
+          f'self-check delta={delta:.2e}')
     onnx_path = out / 'model.onnx'
     torch.onnx.export(w, (sample,), onnx_path,
                       input_names=['context'],
