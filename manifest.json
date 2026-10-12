@@ -2,6 +2,25 @@
   "version": "2026-10-12",
   "models": [
     {
+      "name": "anomaly-transformer",
+      "title": "Anomaly Transformer",
+      "description": "Self-supervised transformer trained on normal energy telemetry (reconstruction + anomaly score heads)",
+      "use_case": "Detect spikes, drifts, level shifts, dropouts and noise anomalies in energy series",
+      "tier": "ai",
+      "kind": "anomaly",
+      "format": "onnx",
+      "artifact": "anomaly-transformer/model.onnx",
+      "sha256": "64acf564fc392a76e5b850b53305c7eace6db562ba326d44b1a70bc7498ebc51",
+      "bytes": 23653742,
+      "source_model": "trained:anomaly",
+      "parity_max_abs_diff": 1.4901161193847656e-07,
+      "channels": 1,
+      "context_length": 512,
+      "source_dataset": "synthetic-telemetry",
+      "source_commit": "d666435be1231c5b875681c4fa023550131aa568",
+      "url": "https://github.com/powerdecksystems/powerdeck-models/releases/download/models-2026-10-12/anomaly-transformer.onnx"
+    },
+    {
       "name": "chronos-2",
       "title": "Chronos-2 Forecast",
       "description": "Universal time-series foundation model (Amazon), zero-shot",
