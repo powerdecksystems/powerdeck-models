@@ -23,7 +23,8 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).parent))
 from pd_datasets import (PQ_CLASSES, ieee1159_waveforms,
-                      synthetic_telemetry, uci_appliances_energy)
+                       synthetic_telemetry, uci_appliances_energy,
+                       nasa_liion_capacities)
 from export import _parity, _sha256, write_fragment
 
 
@@ -298,9 +299,71 @@ def _train_chronos(args, out: Path) -> tuple[float, dict]:
 
 
 def _train_battery(args, out: Path) -> tuple[float, dict]:
-    raise SystemExit(
-        'battery-rul recipe not implemented — two-stage composite '
-        '(torch net + sklearn GBT); stage 4 of BP198')
+    """battery-health: NASA PCoE Li-ion capacity-fade → SOH forecaster.
+
+    Single-stage design (fits the one-ONNX manifest contract — the
+    BP198 two-stage composite would need a new artifact type): a small
+    MLP takes the last W normalised capacity readings and predicts SOH
+    H cycles ahead, letting the appliance project end-of-life.
+    """
+    import torch
+    from torch import nn
+
+    cells = nasa_liion_capacities()
+    if len(cells) < 2:
+        raise SystemExit(f'too few cells parsed: {sorted(cells)}')
+
+    W, H = 20, 4          # window length, forecast horizon (cycles)
+    xs, ys = [], []
+    for cell, caps in cells.items():
+        soh = caps / caps[0]
+        for i in range(len(soh) - W - H + 1):
+            xs.append(soh[i:i + W])
+            ys.append(soh[i + W + H - 1])
+    X = torch.tensor(np.stack(xs), dtype=torch.float32)
+    y = torch.tensor(np.array(ys), dtype=torch.float32)[:, None]
+    print(f'{len(X)} windows from {len(cells)} cells')
+
+    net = nn.Sequential(nn.Linear(W, 64), nn.ReLU(),
+                        nn.Linear(64, 64), nn.ReLU(),
+                        nn.Linear(64, 1))
+    opt = torch.optim.AdamW(net.parameters(), lr=1e-3)
+    lossf = nn.MSELoss()
+    g = torch.Generator().manual_seed(args.seed)
+    perm = torch.randperm(len(X), generator=g)
+    split = int(len(X) * 0.9)
+    tr_idx, te_idx = perm[:split], perm[split:]
+    net.train()
+    for ep in range(args.epochs):
+        p = tr_idx[torch.randperm(len(tr_idx), generator=g)]
+        ep_loss = nb = 0
+        for i in range(0, len(p), 64):
+            idx = p[i:i + 64]
+            loss = lossf(net(X[idx]), y[idx])
+            opt.zero_grad(); loss.backward(); opt.step()
+            ep_loss += loss.item(); nb += 1
+        print(f'epoch {ep + 1}/{args.epochs} '
+              f'loss={ep_loss / max(nb, 1):.5f}')
+    net.eval()
+    with torch.no_grad():
+        mae = float(abs(net(X[te_idx]) - y[te_idx]).mean())
+    print(f'held-out SOH MAE={mae:.4f}')
+
+    sample = X[:1]
+    with torch.no_grad():
+        tout = net(sample).numpy()
+    onnx_path = out / 'model.onnx'
+    torch.onnx.export(net, (sample,), onnx_path,
+                      input_names=['capacity'],
+                      output_names=['soh'],
+                      dynamic_axes={'capacity': {0: 'batch'},
+                                    'soh': {0: 'batch'}},
+                      opset_version=17, dynamo=False)
+    meta = {'cells': sorted(cells), 'window': W,
+            'horizon_cycles': H, 'heldout_soh_mae': round(mae, 4),
+            'source_dataset': 'nasa-pcoe-liion'}
+    return _parity(tout, onnx_path,
+                   {'capacity': sample.numpy()}, args.atol), meta
 
 
 TRAIN_RECIPE = {'pq': _train_pq, 'anomaly': _train_anomaly,

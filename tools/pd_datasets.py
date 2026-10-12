@@ -145,3 +145,59 @@ def uci_appliances_energy(cache: Path = Path('/tmp/uci-energy')):
     if not dest.exists():
         urllib.request.urlretrieve(UCI_APPLIANCES_CSV, dest)
     return dest
+
+
+NASA_BATTERY_ZIP = (
+    'https://phm-datasets.s3.amazonaws.com/NASA/5.+Battery+Data+Set.zip')
+
+
+def nasa_liion_capacities(cells=('B0005', 'B0006', 'B0007', 'B0018',
+                                 'B0029', 'B0030', 'B0031', 'B0032'),
+                          cache: Path = Path('/tmp/nasa-liion')):
+    """NASA PCoE Li-ion aging dataset (Saha & Goebel 2007) — public zip
+    of .mat files; each cell's discharge-cycle capacity series.
+    Returns dict {cell_id: float32 array of capacities (Ah per cycle)}.
+
+    The outer zip contains nested zips; members are decompressed in
+    memory and parsed with scipy.io.loadmat."""
+    import io
+    import urllib.request
+    import zipfile
+    cache.mkdir(parents=True, exist_ok=True)
+    outer = cache / 'nasa-battery.zip'
+    if not outer.exists():
+        print(f'downloading {NASA_BATTERY_ZIP}')
+        urllib.request.urlretrieve(NASA_BATTERY_ZIP, outer)
+    import scipy.io
+    wanted = {c.upper() for c in cells}
+    members = []
+    with zipfile.ZipFile(outer) as z:
+        for n in z.namelist():
+            if n.lower().endswith('.zip'):
+                with zipfile.ZipFile(io.BytesIO(z.read(n))) as inner:
+                    members.extend(inner.open(m).read()
+                                   for m in inner.namelist()
+                                   if Path(m).stem.upper() in wanted)
+            elif Path(n).stem.upper() in wanted:
+                members.append(z.read(n))
+    # members are raw .mat bytes — keep only requested cells
+    for blob in members:
+        m = scipy.io.loadmat(io.BytesIO(blob))
+        cell = next((k for k in m if k.upper() in wanted), None)
+        if cell is None or cell in out:
+            continue
+        cycles = m[cell][0, 0]['cycle'][0]
+        caps = []
+        for cyc in cycles:
+            if str(cyc['type'][0]) != 'discharge':
+                continue
+            try:
+                caps.append(float(cyc['data'][0, 0]['Capacity'][0, 0]))
+            except (IndexError, KeyError, ValueError):
+                continue
+        out[cell] = np.array(caps, dtype=np.float32)
+        print(f'{cell}: {len(caps)} discharge cycles')
+    missing = wanted - set(out)
+    if missing:
+        print(f'warning: cells not found in archive: {sorted(missing)}')
+    return out
