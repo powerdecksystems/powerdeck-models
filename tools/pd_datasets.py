@@ -181,6 +181,7 @@ def nasa_liion_capacities(cells=('B0005', 'B0006', 'B0007', 'B0018',
             elif Path(n).stem.upper() in wanted:
                 members.append(z.read(n))
     # members are raw .mat bytes — keep only requested cells
+    out = {}
     for blob in members:
         m = scipy.io.loadmat(io.BytesIO(blob))
         cell = next((k for k in m if k.upper() in wanted), None)
