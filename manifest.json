@@ -1,4 +1,22 @@
 {
   "version": "2026-10-12",
-  "models": []
+  "models": [
+    {
+      "name": "chronos-2",
+      "title": "Chronos-2 Forecast",
+      "description": "Universal time-series foundation model (Amazon), zero-shot",
+      "use_case": "Solar generation and energy consumption forecasting",
+      "tier": "ai",
+      "kind": "forecast",
+      "format": "onnx",
+      "artifact": "chronos-2/model.onnx",
+      "sha256": "d3e3ad0680473dded1f7711267fa2991e96671acd664f397e290bd85d04f964d",
+      "bytes": 478247702,
+      "source_model": "amazon/chronos-2",
+      "parity_max_abs_diff": 1.9073486328125e-06,
+      "context_length": 512,
+      "horizon_steps": 128,
+      "url": "https://github.com/powerdecksystems/powerdeck-models/releases/download/models-2026-10-12/chronos-2.onnx"
+    }
+  ]
 }
