@@ -62,6 +62,24 @@ def _export_chronos(model: str, out: Path, atol: float,
     encoder-decoder on a representative context window."""
     import torch
     from chronos import BaseChronosPipeline
+    from torch.onnx import register_custom_op_symbolic
+
+    def _nanmean(g, x, dim, keepdim=False, dtype=None):
+        """nanmean(x,dim) = sum(nan_to_num(x),dim) / sum(~isnan(x),dim) —
+        aten::nanmean has no ONNX symbolic."""
+        isnan = g.op("IsNaN", x)
+        inv = g.op("Not", isnan)
+        zero = g.op("Constant",
+                    value_t=torch.zeros(1, dtype=torch.float32))
+        clean = g.op("Where", isnan, zero, x)
+        kd = 1 if keepdim else 0
+        num = g.op("ReduceSum", clean, axes_i=dim, keepdims_i=kd)
+        cnt = g.op("ReduceSum",
+                   g.op("Cast", inv, to_i=1),  # bool → float32
+                   axes_i=dim, keepdims_i=kd)
+        return g.op("Div", num, cnt)
+
+    register_custom_op_symbolic("aten::nanmean", _nanmean, 17)
 
     pipe = BaseChronosPipeline.from_pretrained(model, device_map='cpu')
     inner = pipe.model.eval()
