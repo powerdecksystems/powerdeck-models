@@ -167,7 +167,11 @@ def _train_ttm(args, out: Path) -> tuple[float, dict]:
     then ONNX export on static context."""
     import pandas as pd
     import torch
-    from transformers import TinyTimeMixerForPrediction
+    try:
+        from transformers import TinyTimeMixerForPrediction
+    except ImportError:  # TTM moved to IBM's tsfm package
+        from tsfm_public.models.tinytimemixer import (
+            TinyTimeMixerForPrediction)
 
     m = TinyTimeMixerForPrediction.from_pretrained(args.model)
     ctx_len = m.config.context_length
