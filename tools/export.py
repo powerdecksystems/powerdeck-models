@@ -56,7 +56,8 @@ def _export_seq2seq(model: str, out: Path, atol: float) -> tuple[float, dict]:
     return _parity(tout, out / 'model.onnx', inputs, atol), inputs
 
 
-def _export_chronos(model: str, out: Path, atol: float) -> tuple[float, dict]:
+def _export_chronos(model: str, out: Path, atol: float,
+                    horizon_patches: int = 8) -> tuple[float, dict]:
     """chronos-forecasting models — torch.onnx.export the inner
     encoder-decoder on a representative context window."""
     import torch
@@ -66,23 +67,17 @@ def _export_chronos(model: str, out: Path, atol: float) -> tuple[float, dict]:
     inner = pipe.model.eval()
 
     class _Wrap(torch.nn.Module):
-        """Flatten whatever the model returns to a forecast tensor."""
-        def __init__(self, m):
+        """Chronos2Output → quantile_preds (batch, quantiles, horizon)."""
+        def __init__(self, m, horizon_patches):
             super().__init__()
             self.m = m
+            self.h = horizon_patches
 
         def forward(self, context):
-            o = self.m(context)
-            if torch.is_tensor(o):
-                return o
-            for attr in ('quantiles', 'samples', 'predictions',
-                         'forecast', 'prediction'):
-                t = getattr(o, attr, None)
-                if torch.is_tensor(t):
-                    return t
-            raise RuntimeError(f'unhandled chronos output: {type(o)}')
+            return self.m(context,
+                          num_output_patches=self.h).quantile_preds
 
-    w = _Wrap(inner).eval()
+    w = _Wrap(inner, horizon_patches).eval()
     ctx = torch.sin(torch.linspace(0, 6.28, 128))[None, :]  # 1×128 context
     with torch.no_grad():
         tout = w(ctx).numpy()
