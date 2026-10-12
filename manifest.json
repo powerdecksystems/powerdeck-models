@@ -38,6 +38,24 @@
       "url": "https://github.com/powerdecksystems/powerdeck-models/releases/download/models-2026-10-12/chronos-2.onnx"
     },
     {
+      "name": "energy-ttm",
+      "title": "Energy TTM",
+      "description": "IBM TinyTimeMixer fine-tuned on UCI appliances energy data",
+      "use_case": "Short-horizon load forecasting",
+      "tier": "ai",
+      "kind": "forecast",
+      "format": "onnx",
+      "artifact": "energy-ttm/model.onnx",
+      "sha256": "ec7adae89ac75c0a3a4d8fcd5d0cdc42e19cf4b519aec143860239245d7d626d",
+      "bytes": 342706,
+      "source_model": "EnergyFM/energy-ttm",
+      "parity_max_abs_diff": 1.3783574104309082e-07,
+      "context_length": 168,
+      "horizon_steps": 24,
+      "source_dataset": "uci-appliances-energy",
+      "url": "https://github.com/powerdecksystems/powerdeck-models/releases/download/models-2026-10-12/energy-ttm.onnx"
+    },
+    {
       "name": "pq-classifier",
       "title": "Power Quality Classifier",
       "description": "IEEE-1159 event classifier trained on synthetic waveforms",
