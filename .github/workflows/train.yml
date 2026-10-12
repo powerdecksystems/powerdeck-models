@@ -48,7 +48,7 @@ jobs:
       - name: install deps
         run: pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu &&
              pip install --no-cache-dir transformers onnx onnxscript onnxruntime \
-                 chronos-forecasting huggingface_hub pandas tsfm
+                 chronos-forecasting huggingface_hub pandas granite-tsfm
 
       - name: train + export
         run: >
