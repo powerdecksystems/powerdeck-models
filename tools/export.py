@@ -87,7 +87,8 @@ def _export_chronos(model: str, out: Path, atol: float,
         input_names=['context'], output_names=['forecast'],
         dynamic_axes={'context': {0: 'batch', 1: 'length'},
                       'forecast': {0: 'batch'}},
-        opset_version=17)
+        opset_version=17, dynamo=False)  # dynamo exporter emits an
+    # invalid bool-input Einsum for this model — legacy tracer is clean
     return _parity(tout, onnx_path, {'context': ctx.numpy()}, atol), \
         {'context_shape': list(ctx.shape)}
 
