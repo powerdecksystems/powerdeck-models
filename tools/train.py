@@ -284,7 +284,14 @@ def _train_chronos(args, out: Path) -> tuple[float, dict]:
     df = pd.read_csv(uci_appliances_energy())
     target = torch.tensor(df['Appliances'].values,
                           dtype=torch.float32).numpy()
-    pipe = pipe.fit(inputs=[target],
+    # window the series — feeding all ~20k points as one sequence OOMs
+    # even a T4 (activations scale with length); many short windows is
+    # also better LoRA data.
+    win = args.fit_window
+    inputs = [target[i:i + win] for i in
+              range(0, len(target) - win, win)]
+    print(f'fit inputs: {len(inputs)} windows of {win}')
+    pipe = pipe.fit(inputs=inputs,
                     prediction_length=128,
                     finetune_mode='lora',
                     num_steps=args.steps,
@@ -385,6 +392,8 @@ def main() -> None:
     ap.add_argument('--epochs', type=int, default=10)
     ap.add_argument('--steps', type=int, default=500,
                     help='chronos fit() num_steps')
+    ap.add_argument('--fit-window', type=int, default=2048,
+                    help='chronos fit(): max points per input series')
     ap.add_argument('--samples-per-class', type=int, default=400)
     ap.add_argument('--windows', type=int, default=512)
     ap.add_argument('--channels', type=int, default=1)
