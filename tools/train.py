@@ -298,11 +298,9 @@ def _train_chronos(args, out: Path) -> tuple[float, dict]:
                     num_steps=args.steps,
                     batch_size=args.fit_batch,
                     output_dir=str(out / 'fit'))
-    # persist the finetuned weights, then reuse the verified export
-    # recipe — _export_chronos takes any path from_pretrained accepts
-    fit_dir = out / 'fit' / 'finetuned'
-    fit_dir.mkdir(parents=True, exist_ok=True)
-    pipe.model.save_pretrained(fit_dir)
+    # fit() already merges the LoRA (merge_and_unload) and saves a
+    # complete pipeline checkpoint — export that directly.
+    fit_dir = out / 'fit' / 'finetuned-ckpt'
     from export import _export_chronos
     return _export_chronos(str(fit_dir), out, args.atol), \
         {'source_dataset': 'uci-appliances-energy',
