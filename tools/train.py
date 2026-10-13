@@ -293,8 +293,10 @@ def _train_chronos(args, out: Path) -> tuple[float, dict]:
     print(f'fit inputs: {len(inputs)} windows of {win}')
     pipe = pipe.fit(inputs=inputs,
                     prediction_length=128,
+                    context_length=512,   # match the artifact's context
                     finetune_mode='lora',
                     num_steps=args.steps,
+                    batch_size=args.fit_batch,
                     output_dir=str(out / 'fit'))
     # persist the finetuned weights, then reuse the verified export
     # recipe — _export_chronos takes any path from_pretrained accepts
@@ -394,6 +396,8 @@ def main() -> None:
                     help='chronos fit() num_steps')
     ap.add_argument('--fit-window', type=int, default=2048,
                     help='chronos fit(): max points per input series')
+    ap.add_argument('--fit-batch', type=int, default=8,
+                    help='chronos fit() batch_size (256 default OOMs)')
     ap.add_argument('--samples-per-class', type=int, default=400)
     ap.add_argument('--windows', type=int, default=512)
     ap.add_argument('--channels', type=int, default=1)
