@@ -301,11 +301,14 @@ def _train_chronos(args, out: Path) -> tuple[float, dict]:
     # fit() returns the merged pipeline (merge_and_unload already
     # applied) — export the in-memory model directly; the on-disk
     # checkpoint's config lacks model_type for from_pretrained.
+    # _export_chronos returns (diff, meta) itself — unwrap it or
+    # write_fragment's {diff:.2e} gets a tuple (v13 failure).
     from export import _export_chronos
-    return _export_chronos(pipe, out, args.atol), \
-        {'source_dataset': 'uci-appliances-energy',
-         'finetune_mode': 'lora', 'num_steps': args.steps,
-         'context_length': 512, 'horizon_steps': 128}
+    diff, export_meta = _export_chronos(pipe, out, args.atol)
+    return diff, {'source_dataset': 'uci-appliances-energy',
+                  'finetune_mode': 'lora', 'num_steps': args.steps,
+                  'context_length': 512, 'horizon_steps': 128,
+                  **export_meta}
 
 
 def _train_battery(args, out: Path) -> tuple[float, dict]:
