@@ -203,8 +203,16 @@ def _export_chronos(model: str, out: Path, atol: float,
     ctx = torch.sin(torch.linspace(0, 6.28, context_len))[None, :]
     with torch.no_grad():
         ref = inner(ctx, num_output_patches=horizon_patches).quantile_preds
-    inner._prepare_patched_context = _types.MethodType(
-        _prep_patched_context, inner)
+    # apply to every module that OWNS the method — the merged
+    # (post-LoRA) model's forward delegates to a nested module whose
+    # own _prepare_patched_context would otherwise run unpatched
+    patched_ctx = 0
+    for mod in inner.modules():
+        if hasattr(mod, '_prepare_patched_context'):
+            mod._prepare_patched_context = _types.MethodType(
+                _prep_patched_context, mod)
+            patched_ctx += 1
+    print(f'patched _prepare_patched_context on {patched_ctx} modules')
 
     class _Wrap(torch.nn.Module):
         """Chronos2Output → quantile_preds (batch, quantiles, horizon)."""
