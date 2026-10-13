@@ -131,6 +131,20 @@
       "source_dataset": "synthetic-ieee1159",
       "train_acc": 0.7566,
       "url": "https://github.com/powerdecksystems/powerdeck-models/releases/download/models-2026-10-12/pq-classifier.onnx"
+    },
+    {
+      "name": "qwen2.5-1.5b-instruct",
+      "title": "Narration LLM (Qwen2.5 1.5B)",
+      "description": "Lightweight instruct-tuned language model (GGUF Q4_K_M) for the shared pd-llm runtime \u2014 turns structured analytics into plain-English reports",
+      "use_case": "Report narration, anomaly explanation, trend summaries \u2014 served by llama-server alongside camera VLM workloads",
+      "tier": "ai",
+      "kind": "llm",
+      "format": "gguf",
+      "artifact": "qwen2.5-1.5b-instruct.gguf",
+      "sha256": "1adf0b11065d8ad2e8123ea110d1ec956dab4ab038eab665614adba04b6c3370",
+      "bytes": 986048768,
+      "source_model": "Qwen/Qwen2.5-1.5B-Instruct",
+      "url": "https://github.com/powerdecksystems/powerdeck-models/releases/download/models-finetune/qwen2.5-1.5b-instruct.gguf"
     }
   ]
 }
