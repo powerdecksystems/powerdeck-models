@@ -1,5 +1,5 @@
 {
-  "version": "2026-10-12",
+  "version": "2026-10-13",
   "models": [
     {
       "name": "anomaly-transformer",
@@ -65,6 +65,26 @@
       "context_length": 512,
       "horizon_steps": 128,
       "url": "https://github.com/powerdecksystems/powerdeck-models/releases/download/models-2026-10-12/chronos-2.onnx"
+    },
+    {
+      "name": "chronos-2-energy",
+      "title": "Chronos-2 (energy fine-tune)",
+      "description": "Chronos-2 LoRA fine-tuned on UCI appliances energy data",
+      "use_case": "Energy-domain forecasting",
+      "tier": "ai",
+      "kind": "forecast",
+      "format": "onnx",
+      "artifact": "chronos-2-energy/model.onnx",
+      "sha256": "4f5d6aa85b5ba38c750e5a4286cfcff6580f464a77879a25810e80f671e0430d",
+      "bytes": 482688520,
+      "source_model": "amazon/chronos-2",
+      "parity_max_abs_diff": 1.5497207641601562e-06,
+      "source_dataset": "uci-appliances-energy",
+      "finetune_mode": "lora",
+      "num_steps": 500,
+      "context_length": 512,
+      "horizon_steps": 128,
+      "url": "https://github.com/powerdecksystems/powerdeck-models/releases/download/models-finetune/chronos-2-energy.onnx"
     },
     {
       "name": "energy-ttm",
