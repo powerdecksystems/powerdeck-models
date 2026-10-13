@@ -138,7 +138,14 @@ def _export_chronos(model: str, out: Path, atol: float,
         def forward(self, ids):
             return self.emb(ids.long())
 
-    inner.shared = _EmbedCast(inner.shared)
+    # wrap shared/embed_tokens at EVERY nesting level — the merged
+    # (post-LoRA) model looks ids up via model.shared, not just the
+    # top-level alias that worked for the base model
+    for _pname, parent in inner.named_modules():
+        for _cname, child in parent.named_children():
+            if _cname in ('shared', 'embed_tokens') and \
+                    isinstance(child, torch.nn.Embedding):
+                setattr(parent, _cname, _EmbedCast(child))
 
     # The legacy tracer mis-shapes two constructs inside
     # _prepare_patched_context: Tensor.unfold (patching) and the einops
