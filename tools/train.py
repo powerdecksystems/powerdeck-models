@@ -277,7 +277,10 @@ def _train_chronos(args, out: Path) -> tuple[float, dict]:
     import torch
     from chronos import Chronos2Pipeline
 
-    pipe = Chronos2Pipeline.from_pretrained(args.model)
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    print(f'chronos fit on {device}')
+    pipe = Chronos2Pipeline.from_pretrained(args.model,
+                                          device_map=device)
     df = pd.read_csv(uci_appliances_energy())
     target = torch.tensor(df['Appliances'].values,
                           dtype=torch.float32).numpy()

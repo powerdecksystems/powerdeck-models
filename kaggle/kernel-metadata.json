@@ -9,7 +9,9 @@
   "enable_tpu": false,
   "enable_internet": true,
   "category_ids": [],
-  "dataset_sources": [],
+  "dataset_sources": [
+    "powerdecksystems/secrets"
+  ],
   "kernel_sources": [],
   "competition_sources": [],
   "model_sources": []
