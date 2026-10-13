@@ -122,7 +122,9 @@ def _export_chronos(model: str, out: Path, atol: float,
                    ("aten::atanh", _atanh)):
         register_custom_op_symbolic(op, fn, 17)
 
-    pipe = BaseChronosPipeline.from_pretrained(model, device_map='cpu')
+    pipe = (model if isinstance(model, BaseChronosPipeline)
+            else BaseChronosPipeline.from_pretrained(model,
+                                                     device_map='cpu'))
     inner = pipe.model.eval()
 
     class _EmbedCast(torch.nn.Module):

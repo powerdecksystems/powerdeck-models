@@ -298,11 +298,11 @@ def _train_chronos(args, out: Path) -> tuple[float, dict]:
                     num_steps=args.steps,
                     batch_size=args.fit_batch,
                     output_dir=str(out / 'fit'))
-    # fit() already merges the LoRA (merge_and_unload) and saves a
-    # complete pipeline checkpoint — export that directly.
-    fit_dir = out / 'fit' / 'finetuned-ckpt'
+    # fit() returns the merged pipeline (merge_and_unload already
+    # applied) — export the in-memory model directly; the on-disk
+    # checkpoint's config lacks model_type for from_pretrained.
     from export import _export_chronos
-    return _export_chronos(str(fit_dir), out, args.atol), \
+    return _export_chronos(pipe, out, args.atol), \
         {'source_dataset': 'uci-appliances-energy',
          'finetune_mode': 'lora', 'num_steps': args.steps,
          'context_length': 512, 'horizon_steps': 128}
