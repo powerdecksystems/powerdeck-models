@@ -125,7 +125,7 @@ def _export_chronos(model: str, out: Path, atol: float,
     pipe = (model if isinstance(model, BaseChronosPipeline)
             else BaseChronosPipeline.from_pretrained(model,
                                                      device_map='cpu'))
-    inner = pipe.model.eval()
+    inner = pipe.model.eval().to('cpu')  # fit() may return it on cuda
 
     class _EmbedCast(torch.nn.Module):
         """torch.full without dtype= exports as ConstantOfShape whose
